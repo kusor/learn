@@ -5,13 +5,18 @@ use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
 
+use rust_book_server::ThreadPool;
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let pool = ThreadPool::new(4);
 
+    // To accept a given num of requests (2):
+    // for stream in listener.incoming().take(2) {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        thread::spawn(|| {
+        pool.execute(|| {
             handle_connection(stream);
         });
     }
