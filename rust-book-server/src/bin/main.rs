@@ -20,7 +20,7 @@ fn main() {
             handle_connection(stream);
         });
     }
-    println!("Hello, world!");
+    println!("Shutting down.");
 }
 
 fn handle_connection(mut stream: TcpStream) {
