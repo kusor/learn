@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing_subscriber::fmt::format::FmtSpan;
 use warp::Filter;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,8 +31,19 @@ async fn get_questions(param: String, store: Store) -> Result<impl warp::Reply, 
 
 #[tokio::main]
 async fn main() {
+    let log_filter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "live_code_december=info,warp=info".to_owned());
+
     let store = Store::new();
     let store_filter = warp::any().map(move || store.clone());
+
+    tracing_subscriber::fmt()
+        // Use the filter we built above to determine which traces to record.
+        .with_env_filter(log_filter)
+        // Record an event when each span closes. This can be used to time our
+        // routes' durations!
+        .with_span_events(FmtSpan::CLOSE)
+        .init();
 
     let get_questions = warp::get()
         .and(warp::path("questions"))
