@@ -10,10 +10,11 @@ version = "0.1.0"
 async-trait = "0.1.56"
 log = "0.4.17"
 yahoo_finance_api = "1.1"
+futures = "0.3.21"
 
 [dependencies.async-std]
 version = "1.12.0"
-features = ["attributes"]
+features = ["attributes", "unstable"]
 
 [dependencies.chrono]
 version = "0.4"
