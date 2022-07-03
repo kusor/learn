@@ -213,13 +213,13 @@ async fn get_values() -> std::io::Result<()> {
     let fcontents = fs::read_to_string("sp500.txt").await?;
     let symbols: Vec<&str> = fcontents.split(',').collect();
 
-    let mut fut: Vec<_> = vec![];
     // a simple way to output a CSV header
     println!("period start,symbol,price,change %,min,max,30d avg");
-    for symbol in symbols {
-        fut.push(get_symbol_values(&symbol, &from, &to))
-    }
-    join_all(fut).await;
+    let fut: Vec<_> = symbols
+        .iter()
+        .map(|symbol| get_symbol_values(&symbol, &from, &to))
+        .collect();
+    let _ = join_all(fut).await;
     Ok(())
 }
 
