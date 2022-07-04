@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use chrono::prelude::*;
 use clap::Parser;
 use futures::future::join_all;
-use log::{info, warn};
 use std::io::{Error, ErrorKind};
 use std::time;
 use yahoo_finance_api as yahoo;
@@ -132,10 +131,10 @@ impl AsyncStockSignal for MinPrice {
 ///
 /// Retrieve data from a data source and extract the closing prices. Errors during download are mapped onto io::Errors as InvalidData.
 ///
-async fn fetch_closing_data<'a>(
-    symbol: &'a str,
-    beginning: &'a DateTime<Utc>,
-    end: &'a DateTime<Utc>,
+async fn fetch_closing_data(
+    symbol: &str,
+    beginning: &DateTime<Utc>,
+    end: &DateTime<Utc>,
 ) -> std::io::Result<Vec<f64>> {
     let provider = yahoo::YahooConnector::new();
 
@@ -186,18 +185,6 @@ async fn get_symbol_values(
             period_max,
             sma.last().unwrap_or(&0.0)
         );
-        info!(
-            "{},{},${:.2},{:.2}%,${:.2},${:.2},${:.2}",
-            from.to_rfc3339(),
-            symbol,
-            last_price,
-            pct_change * 100.0,
-            period_min,
-            period_max,
-            sma.last().unwrap_or(&0.0)
-        )
-    } else {
-        warn!("closes are empty");
     }
     Some(closes)
 }
