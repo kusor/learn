@@ -139,6 +139,14 @@ struct DataStreamingMsg {
     to: DateTime<Utc>,
 }
 
+#[message]
+#[derive(Clone)]
+struct ProcessQuoteMsg {
+    symbol: String,
+    closes: Vec<f64>,
+    from: DateTime<Utc>,
+}
+
 ///
 /// Data Streaming Actor
 ///
@@ -157,8 +165,70 @@ impl Actor for DataStreamingActor {
 #[async_trait::async_trait]
 impl Handler<DataStreamingMsg> for DataStreamingActor {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: DataStreamingMsg) {
-        println!("DataStreamingActor processing DataStreamingMsg");
-        let _ = get_symbol_values(&msg.symbol, &msg.from, &msg.to).await;
+        match fetch_closing_data(&msg.symbol, &msg.from, &msg.to).await {
+            Ok(closes) => match Broker::from_registry().await {
+                Ok(mut broker) => {
+                    let _ = &broker.publish(ProcessQuoteMsg {
+                        symbol: msg.symbol.clone(),
+                        closes,
+                        from: msg.from,
+                    });
+                }
+                Err(berr) => {
+                    eprintln!("Error creating broker: {}", berr);
+                }
+            },
+            Err(e) => {
+                eprintln!("Error fetching data for {}: {}", msg.symbol.clone(), e);
+            }
+        };
+    }
+}
+
+///
+/// Data Processing Actor
+///
+#[derive(Default)]
+struct DataProcessingActor;
+
+#[async_trait::async_trait]
+impl Actor for DataProcessingActor {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+        println!("DataProcessingActor subscribed to ProcessQuoteMsg");
+        let _ = ctx.subscribe::<ProcessQuoteMsg>().await;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Handler<ProcessQuoteMsg> for DataProcessingActor {
+    ///
+    /// Do all the calculations for a given symbol once the data is fetch
+    ///
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: ProcessQuoteMsg) {
+        let closes = &msg.closes;
+        // min/max of the period. unwrap() because those are Option types
+        let max_price = MaxPrice {};
+        let period_max: f64 = max_price.calculate(closes).await.unwrap_or(0.0);
+        let min_price = MinPrice {};
+        let period_min: f64 = min_price.calculate(closes).await.unwrap_or(0.0);
+        let last_price = *closes.last().unwrap_or(&0.0);
+        let price_diff = PriceDifference {};
+        let (_, pct_change) = price_diff.calculate(closes).await.unwrap_or((0.0, 0.0));
+        let w_sma = WindowedSMA { window_size: 30 };
+        let sma = w_sma.calculate(closes).await.unwrap_or_default();
+
+        // a simple way to output CSV data
+        println!(
+            "{},{},${:.2},{:.2}%,${:.2},${:.2},${:.2}",
+            msg.from.to_rfc3339(),
+            msg.symbol,
+            last_price,
+            pct_change * 100.0,
+            period_min,
+            period_max,
+            sma.last().unwrap_or(&0.0)
+        );
     }
 }
 
@@ -176,51 +246,17 @@ async fn fetch_closing_data(
         .get_quote_history(symbol, *beginning, *end)
         .await
         .map_err(|_| Error::from(ErrorKind::InvalidData))?;
+
     let mut quotes = response
         .quotes()
         .map_err(|_| Error::from(ErrorKind::InvalidData))?;
+
     if !quotes.is_empty() {
         quotes.sort_by_cached_key(|k| k.timestamp);
         Ok(quotes.iter().map(|q| q.adjclose as f64).collect())
     } else {
         Ok(vec![])
     }
-}
-
-///
-/// Do all the calculations for a given symbol once the data is fetch
-///
-async fn get_symbol_values(
-    symbol: &str,
-    from: &DateTime<Utc>,
-    to: &DateTime<Utc>,
-) -> Option<Vec<f64>> {
-    let closes = fetch_closing_data(symbol, from, to).await.ok()?;
-    if !closes.is_empty() {
-        // min/max of the period. unwrap() because those are Option types
-        let max_price = MaxPrice {};
-        let period_max: f64 = max_price.calculate(&closes).await?;
-        let min_price = MinPrice {};
-        let period_min: f64 = min_price.calculate(&closes).await?;
-        let last_price = *closes.last().unwrap_or(&0.0);
-        let price_diff = PriceDifference {};
-        let (_, pct_change) = price_diff.calculate(&closes).await?;
-        let w_sma = WindowedSMA { window_size: 30 };
-        let sma = w_sma.calculate(&closes).await?;
-
-        // a simple way to output CSV data
-        println!(
-            "{},{},${:.2},{:.2}%,${:.2},${:.2},${:.2}",
-            from.to_rfc3339(),
-            symbol,
-            last_price,
-            pct_change * 100.0,
-            period_min,
-            period_max,
-            sma.last().unwrap_or(&0.0)
-        );
-    }
-    Some(closes)
 }
 
 #[xactor::main]
@@ -231,9 +267,10 @@ async fn main() -> Result<()> {
     let fcontents = fs::read_to_string("sp500.txt").await?;
     let symbols: Vec<&str> = fcontents.split(',').collect();
 
-    let mut interval = stream::interval(time::Duration::from_secs(30));
+    let mut interval = stream::interval(time::Duration::from_secs(5));
     // Start actor
     let _dsactor = DataStreamingActor::start_default().await?;
+    let _dpactor = DataProcessingActor::start_default().await?;
 
     // NOTE: The Stream::interval is still unstable
     while interval.next().await.is_some() {
