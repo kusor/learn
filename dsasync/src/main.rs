@@ -161,7 +161,7 @@ async fn get_symbol_values(
     from: &DateTime<Utc>,
     to: &DateTime<Utc>,
 ) -> Option<Vec<f64>> {
-    let closes = fetch_closing_data(&symbol, &from, &to).await.ok()?;
+    let closes = fetch_closing_data(symbol, from, to).await.ok()?;
     if !closes.is_empty() {
         // min/max of the period. unwrap() because those are Option types
         let max_price = MaxPrice {};
