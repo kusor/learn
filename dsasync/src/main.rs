@@ -133,6 +133,7 @@ impl AsyncStockSignal for MinPrice {
 /// xactor message
 ///
 #[message]
+#[derive(Clone)]
 struct DataStreamingMsg {
     symbols: String,
     from: DateTime<Utc>,
@@ -140,15 +141,24 @@ struct DataStreamingMsg {
 }
 
 ///
-/// Data Streaming do everything actor
+/// Data Streaming Actor
 ///
+#[derive(Default)]
 struct DataStreamingActor;
 
-impl Actor for DataStreamingActor {}
+#[async_trait::async_trait]
+impl Actor for DataStreamingActor {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+        println!("DataStreamingActor subscribed to DataStreamingMsg");
+        let _ = ctx.subscribe::<DataStreamingMsg>().await;
+        Ok(())
+    }
+}
 
 #[async_trait::async_trait]
 impl Handler<DataStreamingMsg> for DataStreamingActor {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: DataStreamingMsg) {
+        println!("DataStreamingActor processing DataStreamingMsg");
         // a simple way to output a CSV header
         println!("period start,symbol,price,change %,min,max,30d avg");
         let symbols: Vec<&str> = msg.symbols.split(',').collect();
@@ -158,6 +168,32 @@ impl Handler<DataStreamingMsg> for DataStreamingActor {
             .collect();
         let _ = join_all(fut).await;
     }
+}
+
+///
+/// Data Downloading Actor
+///
+#[derive(Default)]
+struct DataDownloadingActor;
+
+impl Actor for DataDownloadingActor {}
+
+#[async_trait::async_trait]
+impl Handler<DataStreamingMsg> for DataDownloadingActor {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: DataStreamingMsg) {}
+}
+
+///
+/// Data Processing Actor
+///
+#[derive(Default)]
+struct DataProcessingActor;
+
+impl Actor for DataProcessingActor {}
+
+#[async_trait::async_trait]
+impl Handler<DataStreamingMsg> for DataProcessingActor {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: DataStreamingMsg) {}
 }
 
 ///
@@ -229,17 +265,16 @@ async fn main() -> Result<()> {
     let fcontents = fs::read_to_string("sp500.txt").await?;
 
     let mut interval = stream::interval(time::Duration::from_secs(30));
-    // Start actor and get its address
-    let addr = DataStreamingActor.start().await?;
+    // Start actor
+    let _dsactor = DataStreamingActor::start_default().await?;
 
     // NOTE: The Stream::interval is still unstable
     while interval.next().await.is_some() {
-        addr.call(DataStreamingMsg {
+        let _ = Broker::from_registry().await?.publish(DataStreamingMsg {
             symbols: fcontents.clone(),
             from,
             to,
-        })
-        .await?;
+        });
     }
     Ok(())
 }
