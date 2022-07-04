@@ -2,7 +2,6 @@ use async_std::{fs, prelude::*, stream};
 use async_trait::async_trait;
 use chrono::prelude::*;
 use clap::Parser;
-use futures::future::join_all;
 use std::io::{Error, ErrorKind};
 use std::time;
 use xactor::*;
@@ -135,7 +134,7 @@ impl AsyncStockSignal for MinPrice {
 #[message]
 #[derive(Clone)]
 struct DataStreamingMsg {
-    symbols: String,
+    symbol: String,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 }
@@ -159,41 +158,8 @@ impl Actor for DataStreamingActor {
 impl Handler<DataStreamingMsg> for DataStreamingActor {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: DataStreamingMsg) {
         println!("DataStreamingActor processing DataStreamingMsg");
-        // a simple way to output a CSV header
-        println!("period start,symbol,price,change %,min,max,30d avg");
-        let symbols: Vec<&str> = msg.symbols.split(',').collect();
-        let fut: Vec<_> = symbols
-            .iter()
-            .map(|symbol| get_symbol_values(symbol, &msg.from, &msg.to))
-            .collect();
-        let _ = join_all(fut).await;
+        let _ = get_symbol_values(&msg.symbol, &msg.from, &msg.to).await;
     }
-}
-
-///
-/// Data Downloading Actor
-///
-#[derive(Default)]
-struct DataDownloadingActor;
-
-impl Actor for DataDownloadingActor {}
-
-#[async_trait::async_trait]
-impl Handler<DataStreamingMsg> for DataDownloadingActor {
-    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: DataStreamingMsg) {}
-}
-
-///
-/// Data Processing Actor
-///
-#[derive(Default)]
-struct DataProcessingActor;
-
-impl Actor for DataProcessingActor {}
-
-#[async_trait::async_trait]
-impl Handler<DataStreamingMsg> for DataProcessingActor {
-    async fn handle(&mut self, _ctx: &mut Context<Self>, _msg: DataStreamingMsg) {}
 }
 
 ///
@@ -263,6 +229,7 @@ async fn main() -> Result<()> {
     let from: DateTime<Utc> = opts.from.parse().expect("Couldn't parse 'from' date");
     let to = Utc::now();
     let fcontents = fs::read_to_string("sp500.txt").await?;
+    let symbols: Vec<&str> = fcontents.split(',').collect();
 
     let mut interval = stream::interval(time::Duration::from_secs(30));
     // Start actor
@@ -270,11 +237,13 @@ async fn main() -> Result<()> {
 
     // NOTE: The Stream::interval is still unstable
     while interval.next().await.is_some() {
-        let _ = Broker::from_registry().await?.publish(DataStreamingMsg {
-            symbols: fcontents.clone(),
-            from,
-            to,
-        });
+        for symbol in &symbols {
+            let _ = Broker::from_registry().await?.publish(DataStreamingMsg {
+                symbol: symbol.to_string(),
+                from,
+                to,
+            });
+        }
     }
     Ok(())
 }
