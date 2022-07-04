@@ -218,16 +218,65 @@ impl Handler<ProcessQuoteMsg> for DataProcessingActor {
         let w_sma = WindowedSMA { window_size: 30 };
         let sma = w_sma.calculate(closes).await.unwrap_or_default();
 
+        match Broker::from_registry().await {
+            Ok(mut broker) => {
+                let _ = &broker.publish(PrintableMsg {
+                    symbol: msg.symbol.clone(),
+                    from: msg.from,
+                    last_price,
+                    pct_change: pct_change * 100.0,
+                    period_min,
+                    period_max,
+                    sma: *sma.last().unwrap_or(&0.0),
+                });
+            }
+            Err(berr) => {
+                eprintln!("Error creating broker: {}", berr);
+            }
+        }
+    }
+}
+
+#[message]
+#[derive(Clone)]
+struct PrintableMsg {
+    symbol: String,
+    from: DateTime<Utc>,
+    last_price: f64,
+    pct_change: f64,
+    period_max: f64,
+    period_min: f64,
+    sma: f64,
+}
+
+///
+/// Data Printing Actor
+///
+#[derive(Default)]
+struct DataPrintingActor;
+
+#[async_trait::async_trait]
+impl Actor for DataPrintingActor {
+    async fn started(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+        println!("DataStreamingActor subscribed to PrintableMsg");
+        let _ = ctx.subscribe::<PrintableMsg>().await;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Handler<PrintableMsg> for DataPrintingActor {
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: PrintableMsg) {
         // a simple way to output CSV data
         println!(
             "{},{},${:.2},{:.2}%,${:.2},${:.2},${:.2}",
             msg.from.to_rfc3339(),
             msg.symbol,
-            last_price,
-            pct_change * 100.0,
-            period_min,
-            period_max,
-            sma.last().unwrap_or(&0.0)
+            msg.last_price,
+            msg.pct_change,
+            msg.period_min,
+            msg.period_max,
+            msg.sma
         );
     }
 }
@@ -270,8 +319,11 @@ async fn main() -> Result<()> {
     let mut interval = stream::interval(time::Duration::from_secs(5));
     // Start actor
     let _dsactor = DataStreamingActor::start_default().await?;
-    let _dpactor = DataProcessingActor::start_default().await?;
+    let _dprocactor = DataProcessingActor::start_default().await?;
+    let _dprintactor = DataPrintingActor::start_default().await?;
 
+    // a simple way to output a CSV header
+    println!("period start,symbol,price,change %,min,max,30d avg");
     // NOTE: The Stream::interval is still unstable
     while interval.next().await.is_some() {
         for symbol in &symbols {
