@@ -157,10 +157,10 @@ async fn fetch_closing_data<'a>(
 ///
 /// Do all the calculations for a given symbol once the data is fetch
 ///
-async fn get_symbol_values<'a>(
-    symbol: &'a str,
-    from: &'a DateTime<Utc>,
-    to: &'a DateTime<Utc>,
+async fn get_symbol_values(
+    symbol: &str,
+    from: &DateTime<Utc>,
+    to: &DateTime<Utc>,
 ) -> Option<Vec<f64>> {
     let closes = fetch_closing_data(&symbol, &from, &to).await.ok()?;
     if !closes.is_empty() {
@@ -217,7 +217,7 @@ async fn get_values() -> std::io::Result<()> {
     println!("period start,symbol,price,change %,min,max,30d avg");
     let fut: Vec<_> = symbols
         .iter()
-        .map(|symbol| get_symbol_values(&symbol, &from, &to))
+        .map(|symbol| get_symbol_values(symbol, &from, &to))
         .collect();
     let _ = join_all(fut).await;
     Ok(())
@@ -229,7 +229,7 @@ async fn main() {
     let mut interval = stream::interval(duration);
 
     // NOTE: The Stream::interval is still unstable
-    while let Some(_) = interval.next().await {
+    while interval.next().await.is_some() {
         get_values().await.unwrap();
     }
 }
