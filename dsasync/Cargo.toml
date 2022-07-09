@@ -1,8 +1,16 @@
 [package]
 authors = ["Claus Matzinger <claus.matzinger+kb@gmail.com>"]
 edition = "2018"
-name = "manning-lp-async-rust-project-1-m1"
-version = "0.1.0"
+name = "manning-lp-async-rust-project-2-m2"
+version = "0.4.0"
+default-run = "actors-service"
+
+[[bin]]
+name = "http-service"
+
+[[bin]]
+name = "actors-service"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +22,13 @@ futures = "0.3.21"
 # CVE-2022-24713
 regex = "1.5.5"
 xactor = "0.7.11"
+
+[dependencies.tide]
+version = "0.16.0"
+
+[dependencies.serde]
+version = "1.0.138"
+features = ["derive"]
 
 [dependencies.async-std]
 version = "1.12.0"
