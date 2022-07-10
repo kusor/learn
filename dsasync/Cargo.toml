@@ -1,6 +1,6 @@
 [package]
-authors = ["Claus Matzinger <claus.matzinger+kb@gmail.com>"]
-edition = "2018"
+authors = ["Claus Matzinger <claus.matzinger+kb@gmail.com>", "Pedro Palazon-Candel <kusorbox@gmail.com>"]
+edition = "2021"
 name = "manning-lp-async-rust-project-2-m2"
 version = "0.4.0"
 default-run = "actors-service"
