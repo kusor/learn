@@ -19,14 +19,19 @@ impl Default for Symbol {
 async fn main() -> tide::Result<()> {
     tide::log::start();
     // Create a new tide server
-    let mut app = tide::new();
+    let mut server = tide::new();
     // Add a route to the given path with param `:n` and method GET
     // to be handled by the provided tide::Endpoint
-    app.at("/tail/:n").get(handle_request);
-    app.at("/tail/:n").post(handle_post_request);
+    server.at("/tail/:n").get(handle_request);
+    server.at("/tail/:n").post(handle_post_request);
+    server.at("/favicon.ico").get(&favicon);
     // Asynchronously serve the app
-    app.listen("127.0.0.1:8080").await?;
+    server.listen("127.0.0.1:8080").await?;
     Ok(())
+}
+
+async fn favicon<R>(_req: R) -> tide::Result {
+    Ok(tide::Response::new(200))
 }
 
 ///

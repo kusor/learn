@@ -4,6 +4,7 @@ use clap::Parser;
 use std::time;
 use xactor::*;
 
+use crate::actors::data_printing::DataBufferingActor;
 use crate::actors::data_printing::DataPrintingActor;
 use crate::actors::data_procesing::DataProcessingActor;
 use crate::actors::data_streaming::DataStreamingActor;
