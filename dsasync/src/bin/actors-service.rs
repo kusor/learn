@@ -4,7 +4,7 @@ use clap::Parser;
 use std::time;
 use xactor::*;
 
-use crate::actors::data_printing::DataBufferingActor;
+use crate::actors::data_buffering::DataBufferingActor;
 use crate::actors::data_printing::DataPrintingActor;
 use crate::actors::data_procesing::DataProcessingActor;
 use crate::actors::data_streaming::DataStreamingActor;
@@ -48,6 +48,12 @@ async fn main() -> Result<()> {
     let _dwractor = DataWritingActor {
         filename: format!("{}.csv", to.timestamp()),
         file: None,
+    }
+    .start()
+    .await?;
+    let _dbuffactor = DataBufferingActor {
+        n: 500,
+        queue: None,
     }
     .start()
     .await?;
