@@ -1,4 +1,6 @@
 use chrono::prelude::*;
+use serde::Serialize;
+use std::collections::VecDeque;
 use xactor::*;
 
 ///
@@ -21,7 +23,7 @@ pub struct ProcessQuoteMsg {
 }
 
 #[message]
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct PrintableMsg {
     pub symbol: String,
     pub from: DateTime<Utc>,
@@ -30,4 +32,11 @@ pub struct PrintableMsg {
     pub period_max: f64,
     pub period_min: f64,
     pub sma: f64,
+}
+
+#[message(result = "VecDeque<PrintableMsg>")]
+#[derive(Clone, Serialize)]
+pub struct RequestMsg {
+    pub sym: String,
+    pub n: usize,
 }

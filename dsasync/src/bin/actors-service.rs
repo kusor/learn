@@ -1,6 +1,7 @@
 use async_std::{fs, prelude::*, stream};
 use chrono::prelude::*;
 use clap::Parser;
+use std::collections::VecDeque;
 use std::time;
 use xactor::*;
 
@@ -18,6 +19,8 @@ mod actors;
 mod async_stock_signal;
 #[path = "../messages.rs"]
 mod messages;
+#[path = "../server.rs"]
+mod server;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -41,7 +44,7 @@ async fn main() -> Result<()> {
     let symbols: Vec<&str> = fcontents.split(',').collect();
 
     let mut interval = stream::interval(time::Duration::from_secs(5));
-    // Start actor
+    // Start actors - Should replace with Supervisor::start(|| MyActor().await?)
     let _dsactor = DataStreamingActor::start_default().await?;
     let _dprocactor = DataProcessingActor::start_default().await?;
     let _dprintactor = DataPrintingActor::start_default().await?;
@@ -51,12 +54,21 @@ async fn main() -> Result<()> {
     }
     .start()
     .await?;
-    let _dbuffactor = DataBufferingActor {
+
+    let dbuffactor = DataBufferingActor {
         n: 500,
-        queue: None,
+        queue: VecDeque::new(),
     }
     .start()
     .await?;
+
+    let state = server::State::new(dbuffactor);
+    // Create a new tide server
+    let mut app = tide::with_state(state.clone());
+    async_std::task::spawn(async {
+        app.at("/tail/:n").get(server::handle_request);
+        app.listen("127.0.0.1:8080").await
+    });
 
     // a simple way to output a CSV header
     println!("period start,symbol,price,change %,min,max,30d avg");
