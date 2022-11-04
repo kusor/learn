@@ -5,29 +5,42 @@
 // Better with:
 // crypto.randomUUID();
 
-enum State = [
-  Pending
-  Scheduled
-  Completed
-  Running
-  Failed
-]
+enum State {
+  Pending = 0,
+  Scheduled = 1,
+  Completed = 2,
+  Running = 3,
+  Failed = 4,
+}
 
-interface Task {
-	// ID            uuid.UUID
-	Name          string
-	State         State
-	Image         string
-	Memory        number
-	Disk          number
+type Task = {
+	ID: string; // uuid.UUID
+	Name: string;
+	State: State;
+	Image: string;
+	Memory: number;
+	Disk: number;
 	// ExposedPorts  nat.PortSet
-	PortBindings  map[string]string
-	RestartPolicy string
+  // TODO:
+	// PortBindings: map[string]string;
+	RestartPolicy: string;
 }
 
-interface TaskEvent {
-	// ID        uuid.UUID
-	State     State
-	Timestamp time.Time
-	Task      Task
+type TaskEvent = {
+	ID: string; // uuid.UUID
+	State: State;
+	Timestamp: number; // time.Time
+	Task: Task;
 }
+
+/*
+let t: Task = {
+    ID: crypto.randomUUID(),
+    Name: 'First Task',
+    State: State.Pending,
+    Image: 'k8s-image-name',
+    Memory: 2048,
+    Disk: 2048,
+    RestartPolicy: 'Always'
+}
+*/
