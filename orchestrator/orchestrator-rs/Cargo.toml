@@ -1,0 +1,14 @@
+[package]
+name = "orchestrator-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Pedro Palazon-Candel <kusorbox@gmail.com>"]
+default-run = "orchestrator"
+
+[[bin]]
+name = "orchestrator"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.23"
+uuid = { version = "1.2.2", features = ["v4"] }
