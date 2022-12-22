@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use handle_errors::Error;
 
 /// Pagination struct which is getting extract from query params
+// Note `Default` trait usage here to provide default values
 #[derive(Default, Debug)]
 pub struct Pagination {
     /// Optional max number of items to return
