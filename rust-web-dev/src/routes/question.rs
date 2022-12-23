@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use tracing::{event, instrument, Level};
 use warp::http::StatusCode;
 
+use crate::profanity::check_profanity;
 use crate::store::Store;
 
 use crate::types::{
@@ -35,7 +36,23 @@ pub async fn add_question(
     store: Store,
     new_question: NewQuestion,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    match store.add_question(new_question).await {
+    let title = match check_profanity(new_question.title).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
+
+    let content = match check_profanity(new_question.content).await {
+        Ok(res) => res,
+        Err(e) => return Err(warp::reject::custom(e)),
+    };
+
+    let question = NewQuestion {
+        title,
+        content,
+        tags: new_question.tags,
+    };
+
+    match store.add_question(question).await {
         Ok(_) => Ok(warp::reply::with_status("Question added", StatusCode::OK)),
         Err(e) => Err(warp::reject::custom(e)),
     }
@@ -46,6 +63,26 @@ pub async fn update_question(
     store: Store,
     question: Question,
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    let title = check_profanity(question.title);
+    let content = check_profanity(question.content);
+    // Both requests at once:
+    let (title, content) = tokio::join!(title, content);
+
+    if title.is_err() {
+        return Err(warp::reject::custom(title.unwrap_err()));
+    }
+
+    if content.is_err() {
+        return Err(warp::reject::custom(content.unwrap_err()));
+    }
+
+    let question = Question {
+        id: question.id,
+        title: title.unwrap(),
+        content: content.unwrap(),
+        tags: question.tags,
+    };
+
     match store.update_question(question, id).await {
         Ok(res) => Ok(warp::reply::json(&res)),
         Err(e) => Err(warp::reject::custom(e)),
