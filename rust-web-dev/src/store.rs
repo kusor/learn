@@ -4,6 +4,7 @@ use sqlx::Row;
 use handle_errors::Error;
 
 use crate::types::{
+    account::{Account, AccountId},
     answer::{Answer, AnswerId, NewAnswer},
     question::{NewQuestion, Question, QuestionId},
 };
@@ -49,7 +50,7 @@ impl Store {
             Ok(questions) => Ok(questions),
             Err(e) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", e);
-                Err(Error::DatabaseQueryError)
+                Err(Error::DatabaseQueryError(e))
             }
         }
     }
@@ -69,7 +70,7 @@ impl Store {
                 Ok(question) => Ok(question),
                 Err(e) => {
                     tracing::event!(tracing::Level::ERROR, "{:?}", e);
-                    Err(Error::DatabaseQueryError)
+                    Err(Error::DatabaseQueryError(e))
                 }
             }
     }
@@ -99,7 +100,7 @@ impl Store {
             Ok(question) => Ok(question),
             Err(e) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", e);
-                Err(Error::DatabaseQueryError)
+                Err(Error::DatabaseQueryError(e))
             }
         }
     }
@@ -113,7 +114,7 @@ impl Store {
             Ok(_) => Ok(true),
             Err(e) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", e);
-                Err(Error::DatabaseQueryError)
+                Err(Error::DatabaseQueryError(e))
             }
         }
     }
@@ -133,7 +134,68 @@ impl Store {
             Ok(answer) => Ok(answer),
             Err(e) => {
                 tracing::event!(tracing::Level::ERROR, "{:?}", e);
-                Err(Error::DatabaseQueryError)
+                Err(Error::DatabaseQueryError(e))
+            }
+        }
+    }
+
+    pub async fn add_account(&self, account: Account) -> Result<Account, Error> {
+        match sqlx::query("INSERT INTO accounts (email, password) VALUES ($1, $2)")
+            .bind(account.email)
+            .bind(account.password)
+            .map(|row: PgRow| Account {
+                id: Some(AccountId(row.get("id"))),
+                email: row.get("content"),
+                password: row.get("password"),
+            })
+            .fetch_one(&self.connection)
+            .await
+        {
+            Ok(account) => Ok(account),
+            Err(e) => {
+                tracing::event!(
+                    tracing::Level::ERROR,
+                    code = e
+                        .as_database_error()
+                        .unwrap()
+                        .code()
+                        .unwrap()
+                        .parse::<i32>()
+                        .unwrap(),
+                    db_message = e.as_database_error().unwrap().message(),
+                    constraint = e.as_database_error().unwrap().constraint().unwrap()
+                );
+                Err(Error::DatabaseQueryError(e))
+            }
+        }
+    }
+
+    pub async fn get_account(&self, email: String) -> Result<Account, Error> {
+        match sqlx::query("SELECT * FROM accounts WHERE email = $1")
+            .bind(email)
+            .map(|row: PgRow| Account {
+                id: Some(AccountId(row.get("id"))),
+                email: row.get("content"),
+                password: row.get("password"),
+            })
+            .fetch_one(&self.connection)
+            .await
+        {
+            Ok(account) => Ok(account),
+            Err(e) => {
+                tracing::event!(
+                    tracing::Level::ERROR,
+                    code = e
+                        .as_database_error()
+                        .unwrap()
+                        .code()
+                        .unwrap()
+                        .parse::<i32>()
+                        .unwrap(),
+                    db_message = e.as_database_error().unwrap().message(),
+                    constraint = e.as_database_error().unwrap().constraint().unwrap()
+                );
+                Err(Error::DatabaseQueryError(e))
             }
         }
     }
