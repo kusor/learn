@@ -2,7 +2,7 @@ use argon2::{self, Config};
 use chrono::prelude::*;
 use rand::Rng;
 use std::future;
-use warp::http::{Filter, StatusCode};
+use warp::{http::StatusCode, Filter};
 
 use crate::store::Store;
 use crate::types::account::{Account, AccountId, Session};
