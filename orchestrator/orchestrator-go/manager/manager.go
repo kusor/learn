@@ -3,8 +3,8 @@ package manager
 import (
 	"fmt"
 
-	"github.com/eapache/queue"
 	"github.com/gofrs/uuid"
+	"github.com/golang-collections/collections/queue"
 
 	"github.com/kusor/learn/ochestrator/orchestrator-go/task"
 )

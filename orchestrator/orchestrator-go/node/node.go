@@ -8,4 +8,6 @@ type Node struct {
 	Disk            int
 	DiskAllocated   int
 	TaskCount       int
+	Cores           int
+	Role            string
 }
