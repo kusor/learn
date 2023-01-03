@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"time"
 
@@ -28,14 +29,18 @@ const (
 
 type Task struct {
 	ID            uuid.UUID
+	ContainerID   string
 	Name          string
 	State         State
 	Image         string
+	Cpu           float64
 	Memory        int
 	Disk          int
 	ExposedPorts  nat.PortSet
 	PortBindings  map[string]string
 	RestartPolicy string
+	StartTime     time.Time
+	FinishTime    time.Time
 }
 
 type TaskEvent struct {
@@ -50,12 +55,26 @@ type Config struct {
 	AttachStdin   bool
 	AttachStdout  bool
 	AttachStderr  bool
+	ExposedPorts  nat.PortSet
 	Cmd           []string
 	Image         string
+	Cpu           float64
 	Memory        int64
 	Disk          int64
 	Env           []string
 	RestartPolicy string
+}
+
+func NewConfig(t *Task) *Config {
+	return &Config{
+		Name:          t.Name,
+		ExposedPorts:  t.ExposedPorts,
+		Image:         t.Image,
+		Cpu:           t.Cpu,
+		Memory:        int64(t.Memory),
+		Disk:          int64(t.Disk),
+		RestartPolicy: t.RestartPolicy,
+	}
 }
 
 type Docker struct {
@@ -93,12 +112,8 @@ func (d *Docker) Run() DockerResult {
 	}
 
 	r := container.Resources{
-		Memory: d.Config.Memory,
-	}
-
-	cc := container.Config{
-		Image: d.Config.Image,
-		Env:   d.Config.Env,
+		Memory:   d.Config.Memory,
+		NanoCPUs: int64(d.Config.Cpu * math.Pow(10, 9)),
 	}
 
 	hc := container.HostConfig{
@@ -106,31 +121,24 @@ func (d *Docker) Run() DockerResult {
 		Resources:       r,
 		PublishAllPorts: true,
 	}
-	//
-	//
-	//  func (cli *Client) ContainerCreate(
-	//    ctx context.Context,
-	//    config *container.Config,
-	//    hostConfig *container.HostConfig,
-	//    networkingConfig *network.NetworkingConfig,
-	//    platform *specs.Platform,
-	//    containerName string) (container.ContainerCreateCreatedBody, error)
-	resp, err := d.Client.ContainerCreate(
-		ctx, &cc, &hc, nil, nil, d.Config.Name)
+
+	resp, err := d.Client.ContainerCreate(ctx, &container.Config{
+		Image:        d.Config.Image,
+		Tty:          false,
+		Env:          d.Config.Env,
+		ExposedPorts: d.Config.ExposedPorts,
+	}, &hc, nil, nil, d.Config.Name)
 	if err != nil {
-		log.Printf(
-			"Error creating container using image %s: %v\n",
-			d.Config.Image, err)
+		log.Printf("Error creating container using image %s: %v\n", d.Config.Image, err)
 		return DockerResult{Error: err}
 	}
 
-	err = d.Client.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
-	if err != nil {
+	if err := d.Client.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
 		log.Printf("Error starting container %s: %v\n", resp.ID, err)
 		return DockerResult{Error: err}
 	}
 
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	out, err := d.Client.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
 	if err != nil {
 		log.Printf("Error getting logs for container %s: %v\n", resp.ID, err)
 		return DockerResult{Error: err}
@@ -138,11 +146,7 @@ func (d *Docker) Run() DockerResult {
 
 	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
 
-	return DockerResult{
-		ContainerId: resp.ID,
-		Action:      "start",
-		Result:      "success",
-	}
+	return DockerResult{ContainerId: resp.ID, Action: "start", Result: "success"}
 }
 
 func (d *Docker) Stop(id string) DockerResult {
