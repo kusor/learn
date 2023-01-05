@@ -17,16 +17,6 @@ import (
 	"github.com/moby/moby/pkg/stdcopy"
 )
 
-type State int
-
-const (
-	Pending State = iota
-	Scheduled
-	Completed
-	Running
-	Failed
-)
-
 type Task struct {
 	ID            uuid.UUID
 	ContainerID   string
@@ -144,6 +134,7 @@ func (d *Docker) Run() DockerResult {
 		return DockerResult{Error: err}
 	}
 
+	fmt.Println(fmt.Printf("Result: %#v", resp))
 	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
 
 	return DockerResult{ContainerId: resp.ID, Action: "start", Result: "success"}
@@ -158,7 +149,7 @@ func (d *Docker) Stop(id string) DockerResult {
 		panic(err)
 	}
 
-	err = d.Client.ContainerRemove(ctx, id, types.ContainerRemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: false})
+	err = d.Client.ContainerRemove(ctx, id, types.ContainerRemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true})
 	if err != nil {
 		panic(err)
 	}
