@@ -11,14 +11,39 @@ use futures_util::TryStreamExt;
 use chrono::prelude::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, Hash)]
 pub enum State {
     #[default]
     Pending,
-    //     Scheduled,
-    //     Completed,
-    //     Running,
-    //     Failed,
+    Scheduled,
+    Completed,
+    Running,
+    Failed,
+}
+
+#[allow(dead_code)]
+pub fn contains(src: &State, dst: &State) -> bool {
+    let state_transition_map: HashMap<State, Vec<State>> = HashMap::from([
+        (State::Pending, vec![State::Scheduled]),
+        (
+            State::Scheduled,
+            vec![State::Scheduled, State::Failed, State::Running],
+        ),
+        (State::Completed, vec![]),
+        (
+            State::Running,
+            vec![State::Running, State::Completed, State::Failed],
+        ),
+        (State::Failed, vec![]),
+    ]);
+    if !state_transition_map.contains_key(src) {
+        return false;
+    }
+    if let Some(st) = state_transition_map.get(src) {
+        st.contains(dst)
+    } else {
+        false
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -27,9 +52,10 @@ where
     T: Into<String> + Eq + Hash,
 {
     pub id: Uuid,
-    pub name: Option<T>,
+    pub container_id: Option<T>,
+    pub name: T,
     pub state: State,
-    pub image: Option<T>,
+    pub image: T,
     pub memory: Option<u64>,
     pub disk: Option<u64>,
     // Not absolutely sure of the format of these, we'll see
@@ -56,13 +82,13 @@ pub struct Config<T>
 where
     T: Into<String> + Eq + Hash,
 {
-    pub name: Option<T>,
+    pub name: T,
     pub attach_stdin: Option<bool>,
     pub attach_stdout: Option<bool>,
     pub attach_stderr: Option<bool>,
     pub exposed_ports: Option<HashMap<T, HashMap<(), ()>>>,
     pub cmd: Option<Vec<T>>,
-    pub image: Option<T>,
+    pub image: T,
     pub cpu: Option<f64>,
     pub memory: Option<u64>,
     pub disk: Option<u64>,
@@ -79,7 +105,7 @@ where
     pub config: Config<T>,
     pub container_id: Option<T>,
 }
-#[allow(dead_code)]
+
 pub struct DockerResult<T> {
     pub error: Option<Error>,
     pub action: T,
@@ -104,10 +130,10 @@ impl DockerResult<String> {
 }
 
 impl Config<String> {
-    pub fn new(name: String, image: String, env: Option<Vec<String>>) -> Self {
+    pub fn new(name: &str, image: &str, env: Option<Vec<String>>) -> Self {
         Self {
-            name: Some(name),
-            image: Some(image),
+            name: name.to_string(),
+            image: image.to_string(),
             env,
             ..Default::default()
         }
@@ -115,7 +141,6 @@ impl Config<String> {
 }
 
 impl DockerClient<String> {
-    #[allow(dead_code)]
     pub fn new(config: Config<String>) -> Result<Self, Box<dyn std::error::Error + 'static>> {
         let docker = Docker::connect_with_socket_defaults()?;
         Ok(Self {
@@ -125,17 +150,16 @@ impl DockerClient<String> {
         })
     }
 
-    #[allow(dead_code)]
     pub async fn run(&self) -> Result<DockerResult<String>, Box<dyn std::error::Error + 'static>> {
-        let image: String = match &self.config.image {
-            Some(img) => img.to_string(),
-            None => "alpine:3".to_string(),
-        };
+        let mut image = self.config.image.as_str();
+        if image.is_empty() {
+            image = "alpine:3"
+        }
 
         self.client
             .create_image::<&str>(
                 Some(CreateImageOptions {
-                    from_image: image.as_str(),
+                    from_image: image,
                     ..Default::default()
                 }),
                 None,
@@ -169,7 +193,6 @@ impl DockerClient<String> {
         ))
     }
 
-    #[allow(dead_code)]
     pub async fn stop(
         &self,
         container_id: &str,

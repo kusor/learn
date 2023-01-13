@@ -7,11 +7,13 @@ use uuid::Uuid;
 mod node;
 #[path = "../task.rs"]
 mod task;
+#[path = "../worker.rs"]
+mod worker;
 
 #[allow(dead_code)]
 async fn create_container(
 ) -> Result<task::DockerClient<String>, Box<dyn std::error::Error + 'static>> {
-    let c = task::Config::new("test-container-1".to_string(), "alpine:3".to_string(), None);
+    let c = task::Config::new("test-container-1", "alpine:3", None);
     let mut dc = task::DockerClient::new(c)?;
     let dr = dc.run().await?;
     dc.container_id = dr.container_id;
@@ -44,9 +46,9 @@ async fn main() {
 
     let t = task::Task {
         id: Uuid::new_v4(),
-        name: Some("Task-1".to_string()),
+        name: "Task-1".to_string(),
         state: task::State::Pending,
-        image: Some("Image-1".to_string()),
+        image: "Image-1".to_string(),
         memory: Some(1024),
         disk: Some(1),
         restart_policy: Some("always".to_string()),
@@ -77,7 +79,16 @@ async fn main() {
     };
 
     log::info!("node: {:#?}\n", n);
+    let mut w = worker::Worker::new(Uuid::new_v4().to_string());
+    let tw = task::Task {
+        id: Uuid::new_v4(),
+        name: "test-container-1-rs".to_string(),
+        image: "strm/helloworld-http".to_string(),
+        ..Default::default()
+    };
+    w.add_task(tw);
 
+    // TODO: Modify to use w.run_task method and remove these top level fns
     match create_container().await {
         Err(error) => {
             log::error!("Failed to create the container: {:#?}\n", error);
