@@ -20,6 +20,7 @@ async fn create_container(
     Ok(dc)
 }
 
+#[allow(dead_code)]
 async fn stop_container(
     dc: &task::DockerClient<String>,
 ) -> Result<task::DockerResult<String>, Box<dyn std::error::Error + 'static>> {
@@ -89,15 +90,24 @@ async fn main() {
     w.add_task(tw);
 
     // TODO: Modify to use w.run_task method and remove these top level fns
-    match create_container().await {
+    match w.run_task().await {
         Err(error) => {
             log::error!("Failed to create the container: {:#?}\n", error);
         }
         Ok(dc) => {
             sleep(Duration::from_secs(5)).await;
             log::info!("created container with id: {:#?}\n", &dc.container_id);
+            let tw2 = task::Task {
+                id: Uuid::new_v4(),
+                container_id: dc.container_id,
+                name: "test-container-1-rs".to_string(),
+                image: "strm/helloworld-http".to_string(),
+                state: task::State::Completed,
+                ..Default::default()
+            };
+            w.add_task(tw2);
 
-            match stop_container(&dc).await {
+            match w.run_task().await {
                 Err(error) => {
                     log::error!("Failed to stop the container: {:#?}\n", error);
                 }
