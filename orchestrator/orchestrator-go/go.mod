@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/docker/docker v20.10.22+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/eapache/queue v1.1.0
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3
 	github.com/google/uuid v1.3.0
