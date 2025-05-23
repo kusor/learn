@@ -8,12 +8,13 @@ fn median(list: Vec<f32>) -> Option<f32> {
         return None
     }
     let mut sorted = list.clone();
-    sorted.sort();
+    sorted.sort_by(f32::total_cmp);
     let pos = sorted.len();
+    let mid = pos / 2;
     if pos % 2 != 0 {
-        return Some(sorted[pos - 1])
+        return Some(sorted[mid])
     }
-    return Some((sorted[pos-1] - sorted[pos])/2)
+    Some((sorted[mid] + sorted[mid-1])/2.0)
 }
 
 #[test]
